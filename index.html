@@ -144,6 +144,8 @@
             box-shadow: 0 6px 20px rgba(0, 122, 255, 0.4);
             width: 100%;
             max-width: 280px;
+            position: relative;
+            overflow: hidden;
         }
 
         .main-button:hover {
@@ -160,6 +162,24 @@
             cursor: not-allowed;
             transform: none;
             box-shadow: none;
+        }
+
+        .loading-text {
+            background: linear-gradient(90deg, 
+                rgba(255,255,255,0.3) 0%, 
+                rgba(255,255,255,0.8) 50%, 
+                rgba(255,255,255,0.3) 100%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s ease-in-out infinite;
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            display: inline-block;
+        }
+
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
         }
 
         .color-result {
@@ -314,7 +334,7 @@
         </div>
         
         <button id="analyzeButton" class="main-button">
-            🎨 Farbe analysieren
+            <span id="buttonText">🎨 Farbe analysieren</span>
         </button>
         
         <div id="colorResult" class="color-result">
@@ -349,6 +369,7 @@
         const flipCamera = document.getElementById('flipCamera');
         const selectArea = document.getElementById('selectArea');
         const analyzeButton = document.getElementById('analyzeButton');
+        const buttonText = document.getElementById('buttonText');
         const colorResult = document.getElementById('colorResult');
         const colorPreview = document.getElementById('colorPreview');
         const colorName = document.getElementById('colorName');
@@ -382,22 +403,26 @@
 
             } catch (err) {
                 console.error('Kamera-Fehler:', err);
-                let errorMessage = 'Kamera-Zugriff fehlgeschlagen.';
-                
-                if (err.name === 'NotAllowedError') {
-                    errorMessage = 'Kamera-Berechtigung verweigert. Bitte in den Einstellungen aktivieren.';
-                } else if (err.name === 'NotFoundError') {
-                    errorMessage = 'Keine Kamera gefunden.';
-                } else if (err.name === 'NotSupportedError') {
-                    errorMessage = 'Kamera wird von diesem Browser nicht unterstützt.';
-                }
-                
-                showError(errorMessage);
-                cameraPlaceholder.innerHTML = `
-                    <div class="camera-icon">❌</div>
-                    <div>Kamera nicht verfügbar</div>
-                `;
+                handleCameraError(err);
             }
+        }
+
+        function handleCameraError(err) {
+            let errorMessage = 'Kamera-Zugriff fehlgeschlagen.';
+            
+            if (err.name === 'NotAllowedError') {
+                errorMessage = 'Kamera-Berechtigung verweigert. Bitte in den Einstellungen aktivieren.';
+            } else if (err.name === 'NotFoundError') {
+                errorMessage = 'Keine Kamera gefunden.';
+            } else if (err.name === 'NotSupportedError') {
+                errorMessage = 'Kamera wird von diesem Browser nicht unterstützt.';
+            }
+            
+            showError(errorMessage);
+            cameraPlaceholder.innerHTML = `
+                <div class="camera-icon">❌</div>
+                <div>Kamera nicht verfügbar</div>
+            `;
         }
 
         flipCamera.addEventListener('click', async (e) => {
@@ -410,18 +435,7 @@
                 }
 
                 currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
-                
-                const constraints = {
-                    video: {
-                        facingMode: currentFacingMode,
-                        width: { ideal: 1920 },
-                        height: { ideal: 1080 }
-                    }
-                };
-
-                stream = await navigator.mediaDevices.getUserMedia(constraints);
-                video.srcObject = stream;
-                hideError();
+                await initCamera();
 
             } catch (err) {
                 console.error('Kamera-Wechsel fehlgeschlagen:', err);
@@ -433,14 +447,18 @@
 
         selectArea.addEventListener('click', (e) => {
             e.stopPropagation();
+            
+            // Toggle selection mode
             selectionMode = !selectionMode;
             
             if (selectionMode) {
+                // Aktivieren
                 cameraContainer.classList.add('selection-mode');
                 selectArea.classList.add('selection-active');
                 selectionOverlay.style.pointerEvents = 'auto';
                 selectionInfo.style.display = 'block';
             } else {
+                // Deaktivieren
                 cameraContainer.classList.remove('selection-mode');
                 selectArea.classList.remove('selection-active');
                 selectionOverlay.style.pointerEvents = 'none';
@@ -450,13 +468,13 @@
             }
         });
 
+        // Event Listeners für Bereichsauswahl
         selectionOverlay.addEventListener('mousedown', startSelection);
         selectionOverlay.addEventListener('mousemove', updateSelection);
         selectionOverlay.addEventListener('mouseup', endSelection);
-
-        selectionOverlay.addEventListener('touchstart', handleTouchStart);
-        selectionOverlay.addEventListener('touchmove', handleTouchMove);
-        selectionOverlay.addEventListener('touchend', handleTouchEnd);
+        selectionOverlay.addEventListener('touchstart', handleTouchStart, { passive: false });
+        selectionOverlay.addEventListener('touchmove', handleTouchMove, { passive: false });
+        selectionOverlay.addEventListener('touchend', handleTouchEnd, { passive: false });
 
         function getEventPos(e) {
             const rect = selectionOverlay.getBoundingClientRect();
@@ -510,46 +528,62 @@
         function handleTouchEnd(e) { endSelection(e); }
 
         function updateSelectionBox(x, y, width, height) {
-            selectionBox.style.left = Math.min(x, x + width) + 'px';
-            selectionBox.style.top = Math.min(y, y + height) + 'px';
-            selectionBox.style.width = Math.abs(width) + 'px';
-            selectionBox.style.height = Math.abs(height) + 'px';
+            const left = Math.min(x, x + width);
+            const top = Math.min(y, y + height);
+            const w = Math.abs(width);
+            const h = Math.abs(height);
+            
+            selectionBox.style.left = left + 'px';
+            selectionBox.style.top = top + 'px';
+            selectionBox.style.width = w + 'px';
+            selectionBox.style.height = h + 'px';
         }
 
         analyzeButton.addEventListener('click', async () => {
-            if (!stream) {
-                showError('Kamera nicht bereit.');
+            if (!stream || analyzeButton.disabled) {
                 return;
             }
 
             try {
-                analyzeButton.disabled = true;
-                analyzeButton.textContent = selectedArea ? '🔍 Bereich analysieren...' : '📸 Vollbild analysieren...';
-
-                setTimeout(() => {
-                    takePhotoAndAnalyze();
-                }, 200);
+                setLoadingState(true);
+                hideError();
+                
+                // Kleine Verzögerung für UX
+                await new Promise(resolve => setTimeout(resolve, 300));
+                
+                const result = await takePhotoAndAnalyze();
+                
+                if (result) {
+                    displayColor(result.r, result.g, result.b);
+                } else {
+                    showError('Keine Farbe erkannt. Versuchen Sie es erneut.');
+                }
 
             } catch (err) {
                 console.error('Analyse-Fehler:', err);
                 showError('Fehler bei der Farbanalyse.');
-                resetButton();
+            } finally {
+                setLoadingState(false);
             }
         });
 
-        function takePhotoAndAnalyze() {
+        async function takePhotoAndAnalyze() {
             try {
                 const context = canvas.getContext('2d');
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
+                canvas.width = video.videoWidth || 640;
+                canvas.height = video.videoHeight || 480;
+                
+                if (canvas.width === 0 || canvas.height === 0) {
+                    throw new Error('Ungültige Canvas-Größe');
+                }
+                
                 context.drawImage(video, 0, 0);
-
-                analyzeColor();
+                
+                return analyzeColor();
 
             } catch (err) {
                 console.error('Foto-Aufnahme fehlgeschlagen:', err);
-                showError('Foto konnte nicht aufgenommen werden.');
-                resetButton();
+                throw err;
             }
         }
 
@@ -563,119 +597,106 @@
                     const scaleX = canvas.width / cameraContainer.offsetWidth;
                     const scaleY = canvas.height / cameraContainer.offsetHeight;
                     
-                    const scaledArea = {
-                        x: Math.max(0, Math.round(selectedArea.x * scaleX)),
-                        y: Math.max(0, Math.round(selectedArea.y * scaleY)),
-                        width: Math.min(canvas.width - Math.round(selectedArea.x * scaleX), Math.round(selectedArea.width * scaleX)),
-                        height: Math.min(canvas.height - Math.round(selectedArea.y * scaleY), Math.round(selectedArea.height * scaleY))
-                    };
+                    const x = Math.max(0, Math.floor(selectedArea.x * scaleX));
+                    const y = Math.max(0, Math.floor(selectedArea.y * scaleY));
+                    const width = Math.min(canvas.width - x, Math.floor(selectedArea.width * scaleX));
+                    const height = Math.min(canvas.height - y, Math.floor(selectedArea.height * scaleY));
+                    
+                    if (width <= 0 || height <= 0) {
+                        throw new Error('Ungültiger Auswahlbereich');
+                    }
 
-                    imageData = context.getImageData(
-                        scaledArea.x, 
-                        scaledArea.y, 
-                        scaledArea.width, 
-                        scaledArea.height
-                    );
+                    imageData = context.getImageData(x, y, width, height);
                 } else {
                     // Vollbild analysieren
                     imageData = context.getImageData(0, 0, canvas.width, canvas.height);
                 }
 
-                const dominantColor = findDominantColorAdvanced(imageData.data);
-                
-                if (dominantColor) {
-                    displayColor(dominantColor[0], dominantColor[1], dominantColor[2]);
-                } else {
-                    showError('Keine Farbe erkannt. Versuchen Sie es erneut.');
-                }
-
-                resetButton();
+                return findDominantColor(imageData.data);
 
             } catch (err) {
                 console.error('Farbanalyse fehlgeschlagen:', err);
-                showError('Farbanalyse fehlgeschlagen.');
-                resetButton();
+                throw err;
             }
         }
 
-        function findDominantColorAdvanced(data) {
-            const colorMap = new Map();
-            const tolerance = 30; // Farbtoleranz für Gruppierung
-            
-            // Pixel durchgehen und Farben sammeln
-            for (let i = 0; i < data.length; i += 4) {
-                const r = data[i];
-                const g = data[i + 1];
-                const b = data[i + 2];
-                const alpha = data[i + 3];
+        function findDominantColor(data) {
+            try {
+                const colorCounts = {};
+                const step = 16; // Jeden 16. Pixel analysieren für Performance
                 
-                if (alpha < 128) continue; // Transparente Pixel ignorieren
-                
-                // Sehr dunkle und sehr helle Pixel mit geringerer Gewichtung
-                const brightness = (r + g + b) / 3;
-                if (brightness < 20 || brightness > 235) continue;
-                
-                // Farbe zu existierenden ähnlichen Farben gruppieren
-                let grouped = false;
-                for (let [existingColor, count] of colorMap) {
-                    const [er, eg, eb] = existingColor;
-                    const distance = Math.sqrt(
-                        Math.pow(r - er, 2) + 
-                        Math.pow(g - eg, 2) + 
-                        Math.pow(b - eb, 2)
-                    );
+                for (let i = 0; i < data.length; i += 4 * step) {
+                    const r = data[i];
+                    const g = data[i + 1];
+                    const b = data[i + 2];
+                    const alpha = data[i + 3];
                     
-                    if (distance < tolerance) {
-                        // Farbe zu dieser Gruppe hinzufügen und Durchschnitt berechnen
-                        const newCount = count + 1;
-                        const newR = Math.round((er * count + r) / newCount);
-                        const newG = Math.round((eg * count + g) / newCount);
-                        const newB = Math.round((eb * count + b) / newCount);
-                        
-                        colorMap.delete(existingColor);
-                        colorMap.set([newR, newG, newB], newCount);
-                        grouped = true;
-                        break;
+                    // Nur sichtbare Pixel mit genügend Farbsättigung
+                    if (alpha < 128) continue;
+                    
+                    const brightness = (r + g + b) / 3;
+                    if (brightness < 15 || brightness > 240) continue;
+                    
+                    // Farben in 32er-Gruppen zusammenfassen
+                    const rGroup = Math.floor(r / 32) * 32;
+                    const gGroup = Math.floor(g / 32) * 32;
+                    const bGroup = Math.floor(b / 32) * 32;
+                    
+                    const colorKey = `${rGroup},${gGroup},${bGroup}`;
+                    colorCounts[colorKey] = (colorCounts[colorKey] || 0) + 1;
+                }
+                
+                // Häufigste Farbe finden
+                let dominantColor = null;
+                let maxCount = 0;
+                
+                for (const [colorKey, count] of Object.entries(colorCounts)) {
+                    if (count > maxCount) {
+                        maxCount = count;
+                        const [r, g, b] = colorKey.split(',').map(Number);
+                        dominantColor = { r, g, b };
                     }
                 }
                 
-                if (!grouped) {
-                    colorMap.set([r, g, b], 1);
-                }
+                return dominantColor;
+
+            } catch (err) {
+                console.error('Fehler in findDominantColor:', err);
+                return null;
             }
-            
-            // Häufigste Farbe finden
-            let dominantColor = null;
-            let maxCount = 0;
-            
-            for (let [color, count] of colorMap) {
-                if (count > maxCount) {
-                    maxCount = count;
-                    dominantColor = color;
-                }
+        }
+
+        function setLoadingState(loading) {
+            if (loading) {
+                analyzeButton.disabled = true;
+                buttonText.textContent = selectedArea ? 'Bereich wird analysiert...' : 'Vollbild wird analysiert...';
+                buttonText.classList.add('loading-text');
+            } else {
+                analyzeButton.disabled = false;
+                buttonText.textContent = '🎨 Farbe analysieren';
+                buttonText.classList.remove('loading-text');
             }
-            
-            return dominantColor;
         }
 
         function displayColor(r, g, b) {
-            const hex = rgbToHex(r, g, b);
-            const hsl = rgbToHsl(r, g, b);
-            const name = getDetailedColorName(r, g, b);
-            
-            colorPreview.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
-            colorName.textContent = name;
-            hexValue.textContent = `HEX: ${hex}`;
-            rgbValue.textContent = `RGB: ${r}, ${g}, ${b}`;
-            hslValue.textContent = `HSL: ${hsl.h}°, ${hsl.s}%, ${hsl.l}%`;
-            
-            colorResult.style.display = 'block';
-            hideError();
-        }
-
-        function resetButton() {
-            analyzeButton.disabled = false;
-            analyzeButton.textContent = '🎨 Farbe analysieren';
+            try {
+                const hex = rgbToHex(r, g, b);
+                const hsl = rgbToHsl(r, g, b);
+                const name = getDetailedColorName(r, g, b);
+                
+                colorPreview.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+                colorName.textContent = name;
+                hexValue.textContent = `HEX: ${hex}`;
+                rgbValue.textContent = `RGB: ${r}, ${g}, ${b}`;
+                hslValue.textContent = `HSL: ${hsl.h}°, ${hsl.s}%, ${hsl.l}%`;
+                
+                colorResult.style.display = 'block';
+                hideError();
+                
+            } catch (err) {
+                console.error('Fehler beim Anzeigen der Farbe:', err);
+                showError('Fehler beim Anzeigen der Farbe.');
+            }
         }
 
         function showError(message) {
@@ -719,77 +740,63 @@
 
         function getDetailedColorName(r, g, b) {
             const colors = [
-                // Grundfarben
+                // Rottöne
                 { name: 'Reinrot', rgb: [255, 0, 0] },
                 { name: 'Dunkelrot', rgb: [139, 0, 0] },
                 { name: 'Kirschrot', rgb: [220, 20, 60] },
-                { name: 'Karminrot', rgb: [220, 169, 175] },
                 { name: 'Bordeauxrot', rgb: [128, 0, 32] },
+                { name: 'Karminrot', rgb: [220, 169, 175] },
                 
                 // Grüntöne
                 { name: 'Reingrün', rgb: [0, 255, 0] },
                 { name: 'Waldgrün', rgb: [34, 139, 34] },
-                { name: 'Smaragdgrün', rgb: [0, 201, 87] },
+                { name: 'Smaragdgrün', rgb: [80, 200, 120] },
                 { name: 'Mintgrün', rgb: [152, 251, 152] },
                 { name: 'Olivgrün', rgb: [128, 128, 0] },
-                { name: 'Moosgrün', rgb: [154, 205, 50] },
                 
                 // Blautöne
                 { name: 'Reinblau', rgb: [0, 0, 255] },
                 { name: 'Himmelblau', rgb: [135, 206, 235] },
                 { name: 'Marineblau', rgb: [0, 0, 128] },
-                { name: 'Türkis', rgb: [64, 224, 208] },
-                { name: 'Aquablau', rgb: [0, 255, 255] },
                 { name: 'Königsblau', rgb: [65, 105, 225] },
-                { name: 'Indigoblau', rgb: [75, 0, 130] },
+                { name: 'Türkis', rgb: [64, 224, 208] },
                 
                 // Gelbtöne
                 { name: 'Reingelb', rgb: [255, 255, 0] },
                 { name: 'Goldgelb', rgb: [255, 215, 0] },
                 { name: 'Zitronengelb', rgb: [255, 250, 205] },
-                { name: 'Senfgelb', rgb: [255, 219, 88] },
                 
                 // Orange
                 { name: 'Orange', rgb: [255, 165, 0] },
                 { name: 'Dunkelorange', rgb: [255, 140, 0] },
                 { name: 'Koralle', rgb: [255, 127, 80] },
-                { name: 'Pfirsich', rgb: [255, 218, 185] },
                 
                 // Violett/Lila
                 { name: 'Violett', rgb: [138, 43, 226] },
                 { name: 'Lila', rgb: [128, 0, 128] },
                 { name: 'Magenta', rgb: [255, 0, 255] },
-                { name: 'Lavendel', rgb: [230, 230, 250] },
-                { name: 'Pflaume', rgb: [221, 160, 221] },
                 
                 // Rosa
                 { name: 'Rosa', rgb: [255, 192, 203] },
                 { name: 'Hellrosa', rgb: [255, 182, 193] },
-                { name: 'Dunkelrosa', rgb: [199, 21, 133] },
                 
                 // Brauntöne
                 { name: 'Braun', rgb: [139, 69, 19] },
-                { name: 'Kastanienbraun', rgb: [128, 0, 0] },
-                { name: 'Schokoladenbraun', rgb: [123, 63, 0] },
-                { name: 'Sandbraun', rgb: [194, 154, 108] },
+                { name: 'Schokobraun', rgb: [123, 63, 0] },
                 { name: 'Beige', rgb: [245, 245, 220] },
-                { name: 'Khaki', rgb: [240, 230, 140] },
                 
                 // Grautöne
                 { name: 'Schwarz', rgb: [0, 0, 0] },
-                { name: 'Anthrazit', rgb: [54, 69, 79] },
                 { name: 'Dunkelgrau', rgb: [64, 64, 64] },
                 { name: 'Grau', rgb: [128, 128, 128] },
                 { name: 'Hellgrau', rgb: [192, 192, 192] },
-                { name: 'Silber', rgb: [192, 192, 192] },
-                { name: 'Weiß', rgb: [255, 255, 255] },
-                { name: 'Elfenbein', rgb: [255, 255, 240] }
+                { name: 'Weiß', rgb: [255, 255, 255] }
             ];
 
             let closestColor = colors[0];
             let minDistance = Infinity;
 
-            colors.forEach(color => {
+            for (const color of colors) {
                 const distance = Math.sqrt(
                     Math.pow(r - color.rgb[0], 2) +
                     Math.pow(g - color.rgb[1], 2) +
@@ -799,7 +806,7 @@
                     minDistance = distance;
                     closestColor = color;
                 }
-            });
+            }
 
             return closestColor.name;
         }
