@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Farb-Erkennung</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 400px;
+            width: 100%;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 600;
+            color: #1d1d1f;
+            margin-bottom: 30px;
+        }
+
+        .camera-container {
+            position: relative;
+            margin-bottom: 20px;
+            border-radius: 15px;
+            overflow: hidden;
+            background: #f5f5f7;
+        }
+
+        #video {
+            width: 100%;
+            max-width: 300px;
+            height: 200px;
+            object-fit: cover;
+            display: block;
+        }
+
+        .camera-overlay {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .camera-overlay:hover {
+            background: rgba(0, 0, 0, 0.8);
+            transform: scale(1.1);
+        }
+
+        .flip-icon {
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        #canvas {
+            display: none;
+        }
+
+        .main-button {
+            background: linear-gradient(135deg, #007aff, #0056b3);
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            border-radius: 25px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 20px 0;
+            transition: all 0.3s ease;
+            box-shadow: 0 6px 20px rgba(0, 122, 255, 0.4);
+            width: 100%;
+            max-width: 280px;
+        }
+
+        .main-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 122, 255, 0.5);
+        }
+
+        .main-button:active {
+            transform: translateY(0);
+        }
+
+        .main-button:disabled {
+            background: #8e8e93;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .color-result {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .color-preview {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            margin: 0 auto 15px;
+            border: 3px solid #fff;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .color-info {
+            color: #1d1d1f;
+        }
+
+        .color-value {
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 14px;
+            color: #8e8e93;
+            margin: 5px 0;
+        }
+
+        .error {
+            color: #ff3b30;
+            font-size: 14px;
+            margin-top: 10px;
+            padding: 10px;
+            background: rgba(255, 59, 48, 0.1);
+            border-radius: 10px;
+        }
+
+        .permission-request {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            color: #1d1d1f;
+        }
+
+        .camera-placeholder {
+            width: 100%;
+            height: 200px;
+            background: #f5f5f7;
+            border-radius: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #8e8e93;
+            font-size: 16px;
+        }
+
+        .camera-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 20px;
+                margin: 10px;
+            }
+            
+            h1 {
+                font-size: 24px;
+            }
+
+            .main-button {
+                font-size: 16px;
+                padding: 14px 28px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 Farb-Erkennung</h1>
+        
+        <div class="camera-container">
+            <video id="video" autoplay playsinline style="display: none;"></video>
+            <div id="cameraPlaceholder" class="camera-placeholder">
+                <div class="camera-icon">📷</div>
+                <div>Kamera wird geladen...</div>
+            </div>
+            <div id="cameraOverlay" class="camera-overlay" style="display: none;">
+                <div class="flip-icon">🔄</div>
+            </div>
+            <canvas id="canvas"></canvas>
+        </div>
+        
+        <button id="analyzeButton" class="main-button">
+            🎨 Farbe analysieren
+        </button>
+        
+        <div id="colorResult" class="color-result">
+            <div id="colorPreview" class="color-preview"></div>
+            <div class="color-info">
+                <div id="colorName" style="font-weight: 600; font-size: 18px;"></div>
+                <div id="hexValue" class="color-value"></div>
+                <div id="rgbValue" class="color-value"></div>
+                <div id="hslValue" class="color-value"></div>
+            </div>
+        </div>
+        
+        <div id="error" class="error" style="display: none;"></div>
+    </div>
+
+    <script>
+        let stream = null;
+        let currentFacingMode = 'environment'; // Start mit Rückkamera
+        
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const cameraPlaceholder = document.getElementById('cameraPlaceholder');
+        const cameraOverlay = document.getElementById('cameraOverlay');
+        const analyzeButton = document.getElementById('analyzeButton');
+        const colorResult = document.getElementById('colorResult');
+        const colorPreview = document.getElementById('colorPreview');
+        const colorName = document.getElementById('colorName');
+        const hexValue = document.getElementById('hexValue');
+        const rgbValue = document.getElementById('rgbValue');
+        const hslValue = document.getElementById('hslValue');
+        const errorDiv = document.getElementById('error');
+
+        // Kamera beim Laden initialisieren
+        window.addEventListener('load', initCamera);
+
+        async function initCamera() {
+            try {
+                // iOS-spezifische Kamera-Berechtigung
+                const constraints = {
+                    video: {
+                        facingMode: currentFacingMode,
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                };
+
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = stream;
+                
+                // Warten bis Video geladen ist
+                video.onloadedmetadata = () => {
+                    cameraPlaceholder.style.display = 'none';
+                    video.style.display = 'block';
+                    cameraOverlay.style.display = 'flex';
+                    analyzeButton.disabled = false;
+                    hideError();
+                };
+
+            } catch (err) {
+                console.error('Kamera-Fehler:', err);
+                let errorMessage = 'Kamera-Zugriff fehlgeschlagen.';
+                
+                if (err.name === 'NotAllowedError') {
+                    errorMessage = 'Kamera-Berechtigung verweigert. Bitte in den Einstellungen aktivieren.';
+                } else if (err.name === 'NotFoundError') {
+                    errorMessage = 'Keine Kamera gefunden.';
+                } else if (err.name === 'NotSupportedError') {
+                    errorMessage = 'Kamera wird von diesem Browser nicht unterstützt.';
+                }
+                
+                showError(errorMessage);
+                cameraPlaceholder.innerHTML = `
+                    <div class="camera-icon">❌</div>
+                    <div>Kamera nicht verfügbar</div>
+                `;
+            }
+        }
+
+        // Kamera wechseln (Front/Back)
+        cameraOverlay.addEventListener('click', async () => {
+            try {
+                // Stream stoppen
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+
+                // Kamera-Modus wechseln
+                currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+                
+                // Neue Kamera starten
+                const constraints = {
+                    video: {
+                        facingMode: currentFacingMode,
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                };
+
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = stream;
+                hideError();
+
+            } catch (err) {
+                console.error('Kamera-Wechsel fehlgeschlagen:', err);
+                showError('Kamera-Wechsel nicht möglich.');
+                // Zurück zur ursprünglichen Kamera
+                currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+                initCamera();
+            }
+        });
+
+        // Hauptfunktion: Foto aufnehmen und analysieren
+        analyzeButton.addEventListener('click', async () => {
+            if (!stream) {
+                showError('Kamera nicht bereit.');
+                return;
+            }
+
+            try {
+                // Button temporär deaktivieren
+                analyzeButton.disabled = true;
+                analyzeButton.textContent = '📸 Aufnahme...';
+
+                // Kurze Verzögerung für bessere UX
+                setTimeout(() => {
+                    takePhotoAndAnalyze();
+                }, 200);
+
+            } catch (err) {
+                console.error('Analyse-Fehler:', err);
+                showError('Fehler bei der Farbanalyse.');
+                resetButton();
+            }
+        });
+
+        function takePhotoAndAnalyze() {
+            try {
+                // Foto aufnehmen
+                const context = canvas.getContext('2d');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                context.drawImage(video, 0, 0);
+
+                // Sofort analysieren
+                analyzeColor();
+
+            } catch (err) {
+                console.error('Foto-Aufnahme fehlgeschlagen:', err);
+                showError('Foto konnte nicht aufgenommen werden.');
+                resetButton();
+            }
+        }
+
+        function analyzeColor() {
+            try {
+                const context = canvas.getContext('2d');
+                const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                const data = imageData.data;
+                
+                // Dominante Farbe berechnen
+                const colorCounts = {};
+                const step = 15; // Sampling für Performance
+                
+                for (let i = 0; i < data.length; i += 4 * step) {
+                    const r = data[i];
+                    const g = data[i + 1];
+                    const b = data[i + 2];
+                    const alpha = data[i + 3];
+                    
+                    if (alpha > 128) { // Nur sichtbare Pixel
+                        // Farben in 20er-Gruppen für bessere Dominanz
+                        const rGroup = Math.floor(r / 20) * 20;
+                        const gGroup = Math.floor(g / 20) * 20;
+                        const bGroup = Math.floor(b / 20) * 20;
+                        const colorKey = `${rGroup},${gGroup},${bGroup}`;
+                        colorCounts[colorKey] = (colorCounts[colorKey] || 0) + 1;
+                    }
+                }
+                
+                // Häufigste Farbe finden
+                let dominantColor = null;
+                let maxCount = 0;
+                
+                for (const [color, count] of Object.entries(colorCounts)) {
+                    if (count > maxCount) {
+                        maxCount = count;
+                        dominantColor = color.split(',').map(Number);
+                    }
+                }
+                
+                if (dominantColor) {
+                    displayColor(dominantColor[0], dominantColor[1], dominantColor[2]);
+                } else {
+                    showError('Keine Farbe erkannt. Versuchen Sie es erneut.');
+                }
+
+                resetButton();
+
+            } catch (err) {
+                console.error('Farbanalyse fehlgeschlagen:', err);
+                showError('Farbanalyse fehlgeschlagen.');
+                resetButton();
+            }
+        }
+
+        function displayColor(r, g, b) {
+            const hex = rgbToHex(r, g, b);
+            const hsl = rgbToHsl(r, g, b);
+            const name = getColorName(r, g, b);
+            
+            colorPreview.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+            colorName.textContent = name;
+            hexValue.textContent = `HEX: ${hex}`;
+            rgbValue.textContent = `RGB: ${r}, ${g}, ${b}`;
+            hslValue.textContent = `HSL: ${hsl.h}°, ${hsl.s}%, ${hsl.l}%`;
+            
+            colorResult.style.display = 'block';
+            hideError();
+        }
+
+        function resetButton() {
+            analyzeButton.disabled = false;
+            analyzeButton.textContent = '🎨 Farbe analysieren';
+        }
+
+        function showError(message) {
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+
+        function hideError() {
+            errorDiv.style.display = 'none';
+        }
+
+        function rgbToHex(r, g, b) {
+            return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+        }
+
+        function rgbToHsl(r, g, b) {
+            r /= 255;
+            g /= 255;
+            b /= 255;
+            const max = Math.max(r, g, b), min = Math.min(r, g, b);
+            let h, s, l = (max + min) / 2;
+
+            if (max === min) {
+                h = s = 0;
+            } else {
+                const d = max - min;
+                s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                switch (max) {
+                    case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                    case g: h = (b - r) / d + 2; break;
+                    case b: h = (r - g) / d + 4; break;
+                }
+                h /= 6;
+            }
+            return {
+                h: Math.round(h * 360),
+                s: Math.round(s * 100),
+                l: Math.round(l * 100)
+            };
+        }
+
+        function getColorName(r, g, b) {
+            const colors = [
+                { name: 'Rot', rgb: [255, 0, 0] },
+                { name: 'Grün', rgb: [0, 255, 0] },
+                { name: 'Blau', rgb: [0, 0, 255] },
+                { name: 'Gelb', rgb: [255, 255, 0] },
+                { name: 'Magenta', rgb: [255, 0, 255] },
+                { name: 'Cyan', rgb: [0, 255, 255] },
+                { name: 'Orange', rgb: [255, 165, 0] },
+                { name: 'Lila', rgb: [128, 0, 128] },
+                { name: 'Rosa', rgb: [255, 192, 203] },
+                { name: 'Braun', rgb: [165, 42, 42] },
+                { name: 'Schwarz', rgb: [0, 0, 0] },
+                { name: 'Weiß', rgb: [255, 255, 255] },
+                { name: 'Grau', rgb: [128, 128, 128] },
+                { name: 'Dunkelrot', rgb: [139, 0, 0] },
+                { name: 'Dunkelgrün', rgb: [0, 100, 0] },
+                { name: 'Dunkelblau', rgb: [0, 0, 139] },
+                { name: 'Hellblau', rgb: [173, 216, 230] },
+                { name: 'Hellgrün', rgb: [144, 238, 144] },
+                { name: 'Beige', rgb: [245, 245, 220] },
+                { name: 'Türkis', rgb: [64, 224, 208] }
+            ];
+
+            let closestColor = colors[0];
+            let minDistance = Infinity;
+
+            colors.forEach(color => {
+                const distance = Math.sqrt(
+                    Math.pow(r - color.rgb[0], 2) +
+                    Math.pow(g - color.rgb[1], 2) +
+                    Math.pow(b - color.rgb[2], 2)
+                );
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    closestColor = color;
+                }
+            });
+
+            return closestColor.name;
+        }
+
+        // Cleanup beim Verlassen
+        window.addEventListener('beforeunload', () => {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+        });
+
+        // Orientation change handling für iOS
+        window.addEventListener('orientationchange', () => {
+            setTimeout(() => {
+                if (stream && video.srcObject) {
+                    // Video-Stream neu anpassen
+                    video.play();
+                }
+            }, 500);
+        });
+    </script>
+</body>
+</html>
