@@ -41,46 +41,86 @@
 
         .camera-container {
             position: relative;
-            margin-bottom: 20px;
-            border-radius: 15px;
+            margin: 0 auto 20px;
+            width: 280px;
+            height: 280px;
+            border-radius: 50%;
             overflow: hidden;
             background: #f5f5f7;
+            border: 4px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
         }
 
         #video {
             width: 100%;
-            max-width: 300px;
-            height: 200px;
+            height: 100%;
             object-fit: cover;
             display: block;
         }
 
-        .camera-overlay {
+        .camera-controls {
             position: absolute;
-            bottom: 10px;
-            right: 10px;
-            background: rgba(0, 0, 0, 0.6);
+            bottom: 15px;
+            right: 15px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .control-button {
+            background: rgba(0, 0, 0, 0.7);
             border-radius: 50%;
-            width: 40px;
-            height: 40px;
+            width: 44px;
+            height: 44px;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
             transition: all 0.3s ease;
             backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.2);
         }
 
-        .camera-overlay:hover {
-            background: rgba(0, 0, 0, 0.8);
+        .control-button:hover {
+            background: rgba(0, 0, 0, 0.9);
             transform: scale(1.1);
         }
 
-        .flip-icon {
-            color: white;
-            font-size: 20px;
-            font-weight: bold;
+        .control-button svg {
+            width: 20px;
+            height: 20px;
+            fill: white;
         }
+
+        .selection-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .selection-box {
+            position: absolute;
+            border: 3px solid #007aff;
+            background: rgba(0, 122, 255, 0.1);
+            display: none;
+            border-radius: 8px;
+        }
+
+        .selection-corners {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #007aff;
+            border-radius: 50%;
+        }
+
+        .corner-tl { top: -6px; left: -6px; }
+        .corner-tr { top: -6px; right: -6px; }
+        .corner-bl { bottom: -6px; left: -6px; }
+        .corner-br { bottom: -6px; right: -6px; }
 
         #canvas {
             display: none;
@@ -161,19 +201,11 @@
             border-radius: 10px;
         }
 
-        .permission-request {
-            background: #f8f9fa;
-            border-radius: 15px;
-            padding: 20px;
-            margin-bottom: 20px;
-            color: #1d1d1f;
-        }
-
         .camera-placeholder {
             width: 100%;
-            height: 200px;
+            height: 100%;
             background: #f5f5f7;
-            border-radius: 15px;
+            border-radius: 50%;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -187,6 +219,18 @@
             margin-bottom: 10px;
         }
 
+        .selection-mode {
+            cursor: crosshair !important;
+        }
+
+        .selection-mode .camera-controls {
+            pointer-events: none;
+        }
+
+        .selection-active .control-button {
+            background: rgba(0, 122, 255, 0.8);
+        }
+
         @media (max-width: 480px) {
             .container {
                 padding: 20px;
@@ -195,6 +239,11 @@
             
             h1 {
                 font-size: 24px;
+            }
+
+            .camera-container {
+                width: 240px;
+                height: 240px;
             }
 
             .main-button {
@@ -208,15 +257,35 @@
     <div class="container">
         <h1>🎨 Farb-Erkennung</h1>
         
-        <div class="camera-container">
+        <div class="camera-container" id="cameraContainer">
             <video id="video" autoplay playsinline style="display: none;"></video>
             <div id="cameraPlaceholder" class="camera-placeholder">
                 <div class="camera-icon">📷</div>
                 <div>Kamera wird geladen...</div>
             </div>
-            <div id="cameraOverlay" class="camera-overlay" style="display: none;">
-                <div class="flip-icon">🔄</div>
+            
+            <div class="selection-overlay" id="selectionOverlay">
+                <div class="selection-box" id="selectionBox">
+                    <div class="selection-corners corner-tl"></div>
+                    <div class="selection-corners corner-tr"></div>
+                    <div class="selection-corners corner-bl"></div>
+                    <div class="selection-corners corner-br"></div>
+                </div>
             </div>
+            
+            <div class="camera-controls" id="cameraControls" style="display: none;">
+                <div class="control-button" id="flipCamera" title="Kamera wechseln">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M20 4h-3.17l-1.24-1.35c-.37-.41-.91-.65-1.47-.65H9.88c-.56 0-1.1.24-1.47.65L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM7 11.5c0-2.21 1.79-4 4-4s4 1.79 4 4-.79 4-4 4-4-1.79-4-4zm13 0c0 3.31-2.69 6-6 6v-2c2.21 0 4-1.79 4-4s-1.79-4-4-4V5.5c3.31 0 6 2.69 6 6z"/>
+                    </svg>
+                </div>
+                <div class="control-button" id="selectArea" title="Bereich auswählen">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M3,5H5V3C3.89,3 3,3.89 3,5M3,13H5V11H3V13M13,21H15V19H13V21M19,3V5H21C21,3.89 20.11,3 19,3M5,21V19H3C3,20.11 3.89,21 5,21M3,9H5V7H3V9M15,5H17V3H15V5M19,13H21V11H19V13M19,21C20.11,21 21,20.11 21,19H19V21M19,9H21V7H19V9M11,7H13V5H11V7M9,5H11V3H9V5M15,21H17V19H15V21M7,5H9V3H7V5M9,21H11V19H9V21M13,13H15V11H13V13M15,17H17V15H15V17M13,9H15V7H13V9M15,13H17V11H15V13M7,13H9V11H7V13Z"/>
+                    </svg>
+                </div>
+            </div>
+            
             <canvas id="canvas"></canvas>
         </div>
         
@@ -239,12 +308,21 @@
 
     <script>
         let stream = null;
-        let currentFacingMode = 'environment'; // Start mit Rückkamera
+        let currentFacingMode = 'environment';
+        let selectionMode = false;
+        let selectedArea = null;
+        let isSelecting = false;
+        let startPoint = null;
         
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
+        const cameraContainer = document.getElementById('cameraContainer');
         const cameraPlaceholder = document.getElementById('cameraPlaceholder');
-        const cameraOverlay = document.getElementById('cameraOverlay');
+        const cameraControls = document.getElementById('cameraControls');
+        const selectionOverlay = document.getElementById('selectionOverlay');
+        const selectionBox = document.getElementById('selectionBox');
+        const flipCamera = document.getElementById('flipCamera');
+        const selectArea = document.getElementById('selectArea');
         const analyzeButton = document.getElementById('analyzeButton');
         const colorResult = document.getElementById('colorResult');
         const colorPreview = document.getElementById('colorPreview');
@@ -259,7 +337,6 @@
 
         async function initCamera() {
             try {
-                // iOS-spezifische Kamera-Berechtigung
                 const constraints = {
                     video: {
                         facingMode: currentFacingMode,
@@ -271,11 +348,10 @@
                 stream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = stream;
                 
-                // Warten bis Video geladen ist
                 video.onloadedmetadata = () => {
                     cameraPlaceholder.style.display = 'none';
                     video.style.display = 'block';
-                    cameraOverlay.style.display = 'flex';
+                    cameraControls.style.display = 'flex';
                     analyzeButton.disabled = false;
                     hideError();
                 };
@@ -300,18 +376,18 @@
             }
         }
 
-        // Kamera wechseln (Front/Back)
-        cameraOverlay.addEventListener('click', async () => {
+        // Kamera wechseln
+        flipCamera.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            if (selectionMode) return;
+            
             try {
-                // Stream stoppen
                 if (stream) {
                     stream.getTracks().forEach(track => track.stop());
                 }
 
-                // Kamera-Modus wechseln
                 currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
                 
-                // Neue Kamera starten
                 const constraints = {
                     video: {
                         facingMode: currentFacingMode,
@@ -327,11 +403,97 @@
             } catch (err) {
                 console.error('Kamera-Wechsel fehlgeschlagen:', err);
                 showError('Kamera-Wechsel nicht möglich.');
-                // Zurück zur ursprünglichen Kamera
                 currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
                 initCamera();
             }
         });
+
+        // Bereichsauswahl aktivieren/deaktivieren
+        selectArea.addEventListener('click', (e) => {
+            e.stopPropagation();
+            selectionMode = !selectionMode;
+            
+            if (selectionMode) {
+                cameraContainer.classList.add('selection-mode');
+                selectArea.classList.add('selection-active');
+                selectionOverlay.style.pointerEvents = 'auto';
+            } else {
+                cameraContainer.classList.remove('selection-mode');
+                selectArea.classList.remove('selection-active');
+                selectionOverlay.style.pointerEvents = 'none';
+                selectionBox.style.display = 'none';
+                selectedArea = null;
+            }
+        });
+
+        // Maus-Events für Bereichsauswahl
+        selectionOverlay.addEventListener('mousedown', startSelection);
+        selectionOverlay.addEventListener('mousemove', updateSelection);
+        selectionOverlay.addEventListener('mouseup', endSelection);
+
+        // Touch-Events für mobile Geräte
+        selectionOverlay.addEventListener('touchstart', handleTouchStart);
+        selectionOverlay.addEventListener('touchmove', handleTouchMove);
+        selectionOverlay.addEventListener('touchend', handleTouchEnd);
+
+        function getEventPos(e) {
+            const rect = selectionOverlay.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
+        function startSelection(e) {
+            if (!selectionMode) return;
+            e.preventDefault();
+            isSelecting = true;
+            startPoint = getEventPos(e);
+            selectionBox.style.display = 'block';
+            updateSelectionBox(startPoint.x, startPoint.y, 0, 0);
+        }
+
+        function updateSelection(e) {
+            if (!isSelecting || !selectionMode) return;
+            e.preventDefault();
+            const currentPoint = getEventPos(e);
+            const width = currentPoint.x - startPoint.x;
+            const height = currentPoint.y - startPoint.y;
+            updateSelectionBox(startPoint.x, startPoint.y, width, height);
+        }
+
+        function endSelection(e) {
+            if (!isSelecting || !selectionMode) return;
+            e.preventDefault();
+            isSelecting = false;
+            const currentPoint = getEventPos(e);
+            
+            selectedArea = {
+                x: Math.min(startPoint.x, currentPoint.x),
+                y: Math.min(startPoint.y, currentPoint.y),
+                width: Math.abs(currentPoint.x - startPoint.x),
+                height: Math.abs(currentPoint.y - startPoint.y)
+            };
+
+            // Mindestgröße prüfen
+            if (selectedArea.width < 20 || selectedArea.height < 20) {
+                selectionBox.style.display = 'none';
+                selectedArea = null;
+            }
+        }
+
+        function handleTouchStart(e) { startSelection(e); }
+        function handleTouchMove(e) { updateSelection(e); }
+        function handleTouchEnd(e) { endSelection(e); }
+
+        function updateSelectionBox(x, y, width, height) {
+            selectionBox.style.left = Math.min(x, x + width) + 'px';
+            selectionBox.style.top = Math.min(y, y + height) + 'px';
+            selectionBox.style.width = Math.abs(width) + 'px';
+            selectionBox.style.height = Math.abs(height) + 'px';
+        }
 
         // Hauptfunktion: Foto aufnehmen und analysieren
         analyzeButton.addEventListener('click', async () => {
@@ -341,11 +503,9 @@
             }
 
             try {
-                // Button temporär deaktivieren
                 analyzeButton.disabled = true;
                 analyzeButton.textContent = '📸 Aufnahme...';
 
-                // Kurze Verzögerung für bessere UX
                 setTimeout(() => {
                     takePhotoAndAnalyze();
                 }, 200);
@@ -359,13 +519,11 @@
 
         function takePhotoAndAnalyze() {
             try {
-                // Foto aufnehmen
                 const context = canvas.getContext('2d');
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
                 context.drawImage(video, 0, 0);
 
-                // Sofort analysieren
                 analyzeColor();
 
             } catch (err) {
@@ -378,12 +536,36 @@
         function analyzeColor() {
             try {
                 const context = canvas.getContext('2d');
-                const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                let imageData;
+
+                if (selectedArea) {
+                    // Bereich-spezifische Analyse
+                    const scaleX = canvas.width / cameraContainer.offsetWidth;
+                    const scaleY = canvas.height / cameraContainer.offsetHeight;
+                    
+                    const scaledArea = {
+                        x: Math.round(selectedArea.x * scaleX),
+                        y: Math.round(selectedArea.y * scaleY),
+                        width: Math.round(selectedArea.width * scaleX),
+                        height: Math.round(selectedArea.height * scaleY)
+                    };
+
+                    imageData = context.getImageData(
+                        scaledArea.x, 
+                        scaledArea.y, 
+                        scaledArea.width, 
+                        scaledArea.height
+                    );
+                } else {
+                    // Gesamtbild-Analyse
+                    imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                }
+
                 const data = imageData.data;
                 
-                // Dominante Farbe berechnen
-                const colorCounts = {};
-                const step = 15; // Sampling für Performance
+                // Verbesserte Farbanalyse mit K-Means-ähnlichem Ansatz
+                const colors = [];
+                const step = selectedArea ? 8 : 20; // Kleinerer Step für Bereichsauswahl
                 
                 for (let i = 0; i < data.length; i += 4 * step) {
                     const r = data[i];
@@ -391,31 +573,24 @@
                     const b = data[i + 2];
                     const alpha = data[i + 3];
                     
-                    if (alpha > 128) { // Nur sichtbare Pixel
-                        // Farben in 20er-Gruppen für bessere Dominanz
-                        const rGroup = Math.floor(r / 20) * 20;
-                        const gGroup = Math.floor(g / 20) * 20;
-                        const bGroup = Math.floor(b / 20) * 20;
-                        const colorKey = `${rGroup},${gGroup},${bGroup}`;
-                        colorCounts[colorKey] = (colorCounts[colorKey] || 0) + 1;
+                    if (alpha > 128) {
+                        colors.push([r, g, b]);
                     }
                 }
-                
-                // Häufigste Farbe finden
-                let dominantColor = null;
-                let maxCount = 0;
-                
-                for (const [color, count] of Object.entries(colorCounts)) {
-                    if (count > maxCount) {
-                        maxCount = count;
-                        dominantColor = color.split(',').map(Number);
-                    }
+
+                if (colors.length === 0) {
+                    showError('Keine Farben im gewählten Bereich gefunden.');
+                    resetButton();
+                    return;
                 }
+
+                // Dominante Farbe mit verbessertem Algorithmus finden
+                const dominantColor = findDominantColor(colors);
                 
                 if (dominantColor) {
                     displayColor(dominantColor[0], dominantColor[1], dominantColor[2]);
                 } else {
-                    showError('Keine Farbe erkannt. Versuchen Sie es erneut.');
+                    showError('Keine dominante Farbe erkannt.');
                 }
 
                 resetButton();
@@ -425,6 +600,60 @@
                 showError('Farbanalyse fehlgeschlagen.');
                 resetButton();
             }
+        }
+
+        function findDominantColor(colors) {
+            // Clustering-ähnlicher Ansatz für bessere Farberkennung
+            const clusters = [];
+            const threshold = 50; // Ähnlichkeitsschwelle
+
+            colors.forEach(color => {
+                let addedToCluster = false;
+                
+                for (let cluster of clusters) {
+                    const distance = colorDistance(color, cluster.center);
+                    if (distance < threshold) {
+                        cluster.colors.push(color);
+                        // Zentrum neu berechnen
+                        cluster.center = calculateCentroid(cluster.colors);
+                        addedToCluster = true;
+                        break;
+                    }
+                }
+                
+                if (!addedToCluster) {
+                    clusters.push({
+                        center: [...color],
+                        colors: [color]
+                    });
+                }
+            });
+
+            // Größten Cluster finden
+            let largestCluster = clusters[0];
+            for (let cluster of clusters) {
+                if (cluster.colors.length > largestCluster.colors.length) {
+                    largestCluster = cluster;
+                }
+            }
+
+            return largestCluster ? largestCluster.center.map(Math.round) : null;
+        }
+
+        function colorDistance(color1, color2) {
+            return Math.sqrt(
+                Math.pow(color1[0] - color2[0], 2) +
+                Math.pow(color1[1] - color2[1], 2) +
+                Math.pow(color1[2] - color2[2], 2)
+            );
+        }
+
+        function calculateCentroid(colors) {
+            const sum = colors.reduce(
+                (acc, color) => [acc[0] + color[0], acc[1] + color[1], acc[2] + color[2]], 
+                [0, 0, 0]
+            );
+            return [sum[0] / colors.length, sum[1] / colors.length, sum[2] / colors.length];
         }
 
         function displayColor(r, g, b) {
@@ -489,7 +718,7 @@
         function getColorName(r, g, b) {
             const colors = [
                 { name: 'Rot', rgb: [255, 0, 0] },
-                { name: 'Grün', rgb: [0, 255, 0] },
+                { name: 'Grün', rgb: [0, 128, 0] },
                 { name: 'Blau', rgb: [0, 0, 255] },
                 { name: 'Gelb', rgb: [255, 255, 0] },
                 { name: 'Magenta', rgb: [255, 0, 255] },
@@ -497,7 +726,7 @@
                 { name: 'Orange', rgb: [255, 165, 0] },
                 { name: 'Lila', rgb: [128, 0, 128] },
                 { name: 'Rosa', rgb: [255, 192, 203] },
-                { name: 'Braun', rgb: [165, 42, 42] },
+                { name: 'Braun', rgb: [139, 69, 19] },
                 { name: 'Schwarz', rgb: [0, 0, 0] },
                 { name: 'Weiß', rgb: [255, 255, 255] },
                 { name: 'Grau', rgb: [128, 128, 128] },
@@ -507,7 +736,12 @@
                 { name: 'Hellblau', rgb: [173, 216, 230] },
                 { name: 'Hellgrün', rgb: [144, 238, 144] },
                 { name: 'Beige', rgb: [245, 245, 220] },
-                { name: 'Türkis', rgb: [64, 224, 208] }
+                { name: 'Türkis', rgb: [64, 224, 208] },
+                { name: 'Violett', rgb: [138, 43, 226] },
+                { name: 'Indigo', rgb: [75, 0, 130] },
+                { name: 'Khaki', rgb: [240, 230, 140] },
+                { name: 'Marineblau', rgb: [0, 0, 128] },
+                { name: 'Olivgrün', rgb: [128, 128, 0] }
             ];
 
             let closestColor = colors[0];
@@ -539,7 +773,6 @@
         window.addEventListener('orientationchange', () => {
             setTimeout(() => {
                 if (stream && video.srcObject) {
-                    // Video-Stream neu anpassen
                     video.play();
                 }
             }, 500);
